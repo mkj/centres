@@ -1,0 +1,11 @@
+[package]
+name = "lookcentres"
+version = "0.1.0"
+authors = ["Matt Johnston <matt@ucc.asn.au>"]
+edition = "2018"
+
+[dependencies]
+
+centres = { version = "0.1", path = "../centres" }
+
+druid = "0.6"

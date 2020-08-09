@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+    "centres",
+    "lookcentres",
+]
+
+default-members = [
+    "centres",
+    "lookcentres",
+]
