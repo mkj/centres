@@ -9,3 +9,5 @@ edition = "2018"
 centres = { version = "0.1", path = "../centres" }
 
 druid = "0.6"
+rand = "0.7"
+rand_pcg = "0.2"
