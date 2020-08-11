@@ -15,7 +15,7 @@ use druid::BoxConstraints;
 use druid::Env;
 use druid::{AppLauncher, WindowDesc, Widget, PlatformError, WidgetExt};
 use druid::{Data, Lens, LensExt};
-use druid::widget::{Flex,Label,Spinner,TextBox,Slider,Button};
+use druid::widget::{Flex,Label,Spinner,Stepper,RadioGroup,TextBox,Slider,Button};
 use druid::piet::{ImageFormat,InterpolationMode};
 use druid::widget::prelude::*;
 
@@ -26,6 +26,7 @@ use rand_pcg::Pcg64;
 const FIXED_WIDTH : usize = 500;
 const FIXED_HEIGHT : usize = 500;
 const SEED_LIMIT : u64 = 1_000_000_000_000;
+const INIT_JUMPTO : u64 = 120;
 
 #[derive(Debug, Clone, Data, Lens)]
 struct GenData {
@@ -36,6 +37,8 @@ struct GenData {
     mode: GenMode,
     seed: u64,
     startdensity: f64,
+
+    jumpto: u64,
 
     width: usize,
     height: usize,
@@ -57,6 +60,7 @@ impl GenData {
             startdensity,
             sketch: GenSketch::new(FIXED_WIDTH, FIXED_HEIGHT, mode, seed, startdensity),
             running: false,
+            jumpto: INIT_JUMPTO,
         }
     }
 
@@ -84,6 +88,7 @@ impl GenData {
 enum GenMode {
     Majority,
     Annealing,
+    Vertical,
 }
 
 #[derive(Debug, Clone, Data, PartialEq, Lens)]
@@ -114,6 +119,12 @@ impl GenSketch {
         }
     }
 
+    pub fn skip(&mut self, until: u64) {
+        while self.iter < until {
+            self.step()
+        }
+    }
+
     pub fn step(&mut self) {
         self.iter += 1;
         let mut v = vec![false; self.cells.len()];
@@ -125,23 +136,41 @@ impl GenSketch {
         for y in 1..h-1 {
             let start = y * w;
             for x in 1..w-1 {
-                let total = 0
-                    + c[x+start-w-1] as u8 
-                    + c[x+start-w] as u8
-                    + c[x+start-w+1] as u8
-                    + c[x+start-1] as u8 
-                    + c[x+start] as u8
-                    + c[x+start+1] as u8
-                    + c[x+start+w-1] as u8 
-                    + c[x+start+w] as u8
-                    + c[x+start+w+1] as u8;
-
                 v[x+start] = match self.mode {
-                    GenMode::Majority => {
-                        total > 4
+                    GenMode::Majority | GenMode::Annealing => {
+                        let total = 0
+                            + c[x+start-w-1] as u8 
+                            + c[x+start-w] as u8
+                            + c[x+start-w+1] as u8
+                            + c[x+start-1] as u8 
+                            + c[x+start] as u8
+                            + c[x+start+1] as u8
+                            + c[x+start+w-1] as u8 
+                            + c[x+start+w] as u8
+                            + c[x+start+w+1] as u8;
+                        match self.mode {
+                            GenMode::Majority => {
+                                total > 4
+                            }
+                            GenMode::Annealing => {
+                                total == 4 || total > 5
+                            }
+                            _ => panic!("nope")
+                        }
                     }
-                    GenMode::Annealing => {
-                        total == 4 || total > 5
+                    GenMode::Vertical => {
+                        let total = 0
+                            + 2*c[x+start-w-1] as u8 
+                            + 2*c[x+start-w] as u8
+                            + 2*c[x+start-w+1] as u8
+                            + c[x+start-1] as u8 
+                            + c[x+start] as u8
+                            + c[x+start+1] as u8
+                            + 2*c[x+start+w-1] as u8 
+                            + 2*c[x+start+w] as u8
+                            + 2*c[x+start+w+1] as u8;
+                        total > 7
+
                     }
                 }
             }
@@ -173,6 +202,11 @@ impl GenWidget {
         }
     }
 
+    fn start_timer(&mut self, ctx: &mut EventCtx) {
+        let deadline = Duration::from_millis(5 as u64);
+        self.timer_id = ctx.request_timer(deadline);
+    }
+
     const RESIZE: Selector<Size> = Selector::new("resize");
 }
 
@@ -180,21 +214,18 @@ impl Widget<GenData> for GenWidget {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut GenData, _env: &Env) {
         match event {
             Event::WindowConnected => {
-                ctx.request_paint();
-                let deadline = Duration::from_millis(10 as u64);
-                self.timer_id = ctx.request_timer(deadline);
+                self.start_timer(ctx);
             }
             Event::Timer(id) => {
                 if *id == self.timer_id {
                     if data.running {
                         data.sketch.step();
-                        ctx.request_paint();
                     }
-                    let deadline = Duration::from_millis(10 as u64);
-                    self.timer_id = ctx.request_timer(deadline);
+                    self.start_timer(ctx);
                 }
             }
             Event::MouseDown(_e) => {
+                self.start_timer(ctx);
                 data.running = true;
             }
             Event::MouseUp(_e) => {
@@ -270,11 +301,22 @@ impl Widget<GenData> for GenWidget {
 
 
 fn build_ui() -> impl Widget<GenData> {
+
+
     let lens_u64 = druid::lens::Map::new(
         |x : &u64| x.to_string(), 
         |x: &mut u64, val| { 
             // ignore invalid number entries
             if let Ok(v) = val.parse::<u64>() {
+                *x = v;
+            }
+        });
+
+    let lens_f64 = druid::lens::Map::new(
+        |x : &f64| format!("{:.5}", x),
+        |x: &mut f64, val| { 
+            // ignore invalid number entries
+            if let Ok(v) = val.parse::<f64>() {
                 *x = v;
             }
         });
@@ -304,13 +346,50 @@ fn build_ui() -> impl Widget<GenData> {
                     )
                 )
             .with_child(
-                Slider::new()
-                .with_range(0.0, 1.0)
-                .lens(GenData::startdensity.then(druid::lens::Id))
+                RadioGroup::new(vec![
+                    ("Majority", GenMode::Majority),
+                    ("Annealing", GenMode::Annealing),
+                    ("Vertical", GenMode::Vertical),
+                ])
+                .lens(GenData::mode)
+                )
+            .with_child(
+                Flex::row()
+                .with_child(
+                    Slider::new()
+                    .with_range(0.44, 0.56)
+                    .lens(GenData::startdensity.then(druid::lens::Id))
+                    )
+                .with_child(
+                    TextBox::new()
+                    .lens(GenData::startdensity.then(lens_f64))
+                    )
                 )
             .with_child(
                 Label::dynamic(|iter: &u64, _: &Env| format!("iter {}", iter))
                 .lens(GenData::sketch.then(GenSketch::iter))
+                )
+            .with_child(
+                Flex::row()
+                .with_child(
+                    Label::dynamic(|v: &u64, _: &Env| format!("{}", v))
+                    .lens(GenData::jumpto)
+                    )
+                .with_child(
+                    Stepper::new()
+                    .with_range(0.0, 1000.0)
+                    .with_step(10.0)
+                    .lens(GenData::jumpto.map(|&u| u as f64, |u, f| *u = f as u64))
+                    )
+                .with_child(
+                    Button::new("New")
+                    // TODO: something with Command instead?
+                    .on_click(|_ctx, data: &mut GenData, _env| {
+                        data.random_seed();
+                        data.restart();
+                        data.sketch.skip(data.jumpto);
+                    })
+                    )
                 )
             .with_child(
                 Button::new("New")

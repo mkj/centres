@@ -3,6 +3,10 @@ name = "lookcentres"
 version = "0.1.0"
 authors = ["Matt Johnston <matt@ucc.asn.au>"]
 edition = "2018"
+description = "lookcentres"
+
+[package.metadata.bundle]
+identifier = "au.asn.ucc.matt.centres"
 
 [dependencies]
 
@@ -11,3 +15,4 @@ centres = { version = "0.1", path = "../centres" }
 druid = "0.6"
 rand = "0.7"
 rand_pcg = "0.2"
+
