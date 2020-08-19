@@ -15,7 +15,7 @@ use druid::BoxConstraints;
 use druid::Env;
 use druid::{AppLauncher, WindowDesc, Widget, PlatformError, WidgetExt};
 use druid::{Data, Lens, LensExt};
-use druid::widget::{Flex,Label,Spinner,Stepper,RadioGroup,TextBox,Slider,Button};
+use druid::widget::{Flex,Label,Stepper,RadioGroup,TextBox,Slider,Button};
 use druid::piet::{ImageFormat,InterpolationMode};
 use druid::widget::prelude::*;
 
@@ -49,7 +49,7 @@ struct GenData {
 impl GenData {
     pub fn new() -> Self {
         let startdensity = 0.5;
-        let mode = GenMode::Annealing;
+        let mode = GenMode::Experiment;
         let seed = Self::make_seed();
 
         GenData {
@@ -88,6 +88,8 @@ impl GenData {
 enum GenMode {
     Majority,
     Annealing,
+    Star1,
+    TwoBonus,
     Experiment,
 }
 
@@ -143,10 +145,10 @@ impl GenSketch {
         let c = &self.cells;
         for y in 1..h-1 {
             let start = y * w;
-            let rstart = (self.height-y-1) * w;
             for x in 1..w-1 {
                 v[x+start] = {
-                        let mut total = 0
+                        let total = //i8::min(9, i8::max(0, 
+                            0
                             + c[x+start-w-1]
                             + c[x+start-w]
                             + c[x+start-w+1]
@@ -164,12 +166,32 @@ impl GenSketch {
                             GenMode::Annealing => {
                                 (total == 4 || total > 5).into()
                             }
-                            GenMode::Experiment => {
+                            GenMode::Star1 | GenMode::TwoBonus => {
+                                let bonus = match self.mode {
+                                    GenMode::Star1 => {1}
+                                    GenMode::TwoBonus => {2}
+                                    _ => panic!("wrong mode")
+                                };
                                 let r = total == 4 || total > 5;
                                 r as i8
-                                    + if r && c[x+start] < 1 { 1 }
-                                    else if !r && c[x+start] >= 1 { -1 }
+                                    + if r && c[x+start] < 1 { bonus }
+                                    else if !r && c[x+start] >= 1 { -bonus }
                                     else { 0 }
+                                //new[x+start] = res && !c[x+start];
+                                //res
+                            }
+                            GenMode::Experiment => {
+                                let bonus = 3;
+                                let r = total == 4 || total > 5;
+                                let adj = r as i8
+                                    + if total > 5 {
+                                        if r && c[x+start] < 0 { bonus }
+                                        else if !r && c[x+start] > 0 { -bonus }
+                                        else { 0 }
+                                    } else {
+                                        0
+                                    };
+                                adj
                                 //new[x+start] = res && !c[x+start];
                                 //res
                             }
@@ -351,7 +373,9 @@ fn build_ui() -> impl Widget<GenData> {
                 RadioGroup::new(vec![
                     ("Majority", GenMode::Majority),
                     ("Annealing", GenMode::Annealing),
-                    ("Exp", GenMode::Experiment),
+                    ("Star", GenMode::Star1),
+                    ("TwoBonus", GenMode::TwoBonus),
+                    ("Experiment", GenMode::Experiment),
                 ])
                 .lens(GenData::mode)
                 )
