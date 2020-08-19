@@ -88,17 +88,17 @@ impl GenData {
 enum GenMode {
     Majority,
     Annealing,
-    Vertical,
+    Experiment,
 }
 
 #[derive(Debug, Clone, Data, PartialEq, Lens)]
 struct GenSketch {
     iter: u64,
     mode: GenMode,
-    cells: Arc<Vec<bool>>,
+    cells: Arc<Vec<i8>>,
     width: usize,
     height: usize,
-
+    randompair: Arc<Vec<u32>>,
 }
 
 impl GenSketch {
@@ -107,8 +107,15 @@ impl GenSketch {
 
         let mut v = Vec::with_capacity(width*height);
         for _ in 0..v.capacity() {
-            v.push( rng.gen::<f64>() < startdensity)
+            v.push( (rng.gen::<f64>() < startdensity).into() );
         }
+
+        assert!(width*height <= u32::MAX as usize);
+        let mut p = Vec::with_capacity(width*height);
+        for i in 0..v.capacity() {
+            p.push(i as u32)
+        }
+        p.shuffle(&mut rng);
 
         GenSketch {
             iter: 0,
@@ -116,6 +123,7 @@ impl GenSketch {
             cells: Arc::new(v),
             width,
             height,
+            randompair: Arc::new(p),
         }
     }
 
@@ -127,7 +135,7 @@ impl GenSketch {
 
     pub fn step(&mut self) {
         self.iter += 1;
-        let mut v = vec![false; self.cells.len()];
+        let mut v = vec![0; self.cells.len()];
 
         let w = self.width;
         let h = self.height;
@@ -135,10 +143,10 @@ impl GenSketch {
         let c = &self.cells;
         for y in 1..h-1 {
             let start = y * w;
+            let rstart = (self.height-y-1) * w;
             for x in 1..w-1 {
-                v[x+start] = match self.mode {
-                    GenMode::Majority | GenMode::Annealing => {
-                        let total = 0
+                v[x+start] = {
+                        let mut total = 0
                             + c[x+start-w-1] as u8 
                             + c[x+start-w] as u8
                             + c[x+start-w+1] as u8
@@ -150,28 +158,17 @@ impl GenSketch {
                             + c[x+start+w+1] as u8;
                         match self.mode {
                             GenMode::Majority => {
-                                total > 4
+                                (total > 4).into()
                             }
                             GenMode::Annealing => {
-                                total == 4 || total > 5
+                                (total == 4 || total > 5).into()
                             }
-                            _ => panic!("nope")
+                            GenMode::Experiment => {
+                                (total == 4 || total > 5).into()
+                                //new[x+start] = res && !c[x+start];
+                                //res
+                            }
                         }
-                    }
-                    GenMode::Vertical => {
-                        let total = 0
-                            + 2*c[x+start-w-1] as u8 
-                            + 2*c[x+start-w] as u8
-                            + 2*c[x+start-w+1] as u8
-                            + c[x+start-1] as u8 
-                            + c[x+start] as u8
-                            + c[x+start+1] as u8
-                            + 2*c[x+start+w-1] as u8 
-                            + 2*c[x+start+w] as u8
-                            + 2*c[x+start+w+1] as u8;
-                        total > 7
-
-                    }
                 }
             }
         }
@@ -181,7 +178,7 @@ impl GenSketch {
     pub fn get_image_buffer(&self) -> Vec<u8> {
         let mut im = Vec::with_capacity(self.cells.len() * 4);
         for &v in self.cells.iter() {
-                let pix = if v { 0 } else { 0xff };
+                let pix = if v != 0 { 0xff } else { 0 };
                 im.push(pix);
                 im.push(pix);
                 im.push(pix);
@@ -349,7 +346,7 @@ fn build_ui() -> impl Widget<GenData> {
                 RadioGroup::new(vec![
                     ("Majority", GenMode::Majority),
                     ("Annealing", GenMode::Annealing),
-                    ("Vertical", GenMode::Vertical),
+                    ("Exp", GenMode::Experiment),
                 ])
                 .lens(GenData::mode)
                 )
@@ -401,6 +398,9 @@ fn build_ui() -> impl Widget<GenData> {
 
 fn main() -> Result<(), PlatformError> {
     let gend = GenData::new();
-    AppLauncher::with_window(WindowDesc::new(build_ui)).launch(gend)?;
+    AppLauncher::with_window(
+        WindowDesc::new(build_ui)
+        .title("centres")
+        ).launch(gend)?;
     Ok(())
 }
