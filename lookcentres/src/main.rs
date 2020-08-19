@@ -147,15 +147,16 @@ impl GenSketch {
             for x in 1..w-1 {
                 v[x+start] = {
                         let mut total = 0
-                            + c[x+start-w-1] as u8 
-                            + c[x+start-w] as u8
-                            + c[x+start-w+1] as u8
-                            + c[x+start-1] as u8 
-                            + c[x+start] as u8
-                            + c[x+start+1] as u8
-                            + c[x+start+w-1] as u8 
-                            + c[x+start+w] as u8
-                            + c[x+start+w+1] as u8;
+                            + c[x+start-w-1]
+                            + c[x+start-w]
+                            + c[x+start-w+1]
+                            + c[x+start-1]
+                            + c[x+start]
+                            + c[x+start+1]
+                            + c[x+start+w-1]
+                            + c[x+start+w]
+                            + c[x+start+w+1]
+                            ;
                         match self.mode {
                             GenMode::Majority => {
                                 (total > 4).into()
@@ -164,7 +165,11 @@ impl GenSketch {
                                 (total == 4 || total > 5).into()
                             }
                             GenMode::Experiment => {
-                                (total == 4 || total > 5).into()
+                                let r = total == 4 || total > 5;
+                                r as i8
+                                    + if r && c[x+start] < 1 { 1 }
+                                    else if !r && c[x+start] >= 1 { -1 }
+                                    else { 0 }
                                 //new[x+start] = res && !c[x+start];
                                 //res
                             }
