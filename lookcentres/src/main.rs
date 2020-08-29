@@ -383,7 +383,7 @@ fn build_ui() -> impl Widget<GenData> {
                 Flex::row()
                 .with_child(
                     Slider::new()
-                    .with_range(0.44, 0.56)
+                    .with_range(0., 0.56)
                     .lens(GenData::startdensity.then(druid::lens::Id))
                     )
                 .with_child(
