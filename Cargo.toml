@@ -9,3 +9,7 @@ default-members = [
     "centres",
     "lookcentres",
 ]
+
+[profile.release]
+opt-level = 's'
+lto = true
