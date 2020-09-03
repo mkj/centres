@@ -1,5 +1,5 @@
 use druid::Selector;
-use std::time::Duration;
+use std::time::{Duration,Instant};
 use druid::TimerToken;
 use std::sync::Arc;
 use druid::LifeCycle;
@@ -21,6 +21,8 @@ use druid::widget::prelude::*;
 
 use rand::prelude::*;
 use rand_pcg::Pcg64;
+
+use rayon::prelude::*;
 
 // TODO: it will ev
 const FIXED_WIDTH : usize = 500;
@@ -101,6 +103,9 @@ struct GenSketch {
     width: usize,
     height: usize,
     randompair: Arc<Vec<u32>>,
+
+    // time to draw so far. XXX be nice if Duration implemented Data
+    elapsed: f64,
 }
 
 impl GenSketch {
@@ -126,6 +131,7 @@ impl GenSketch {
             width,
             height,
             randompair: Arc::new(p),
+            elapsed: 0.0,
         }
     }
 
@@ -138,21 +144,21 @@ impl GenSketch {
     pub fn step(&mut self) {
         self.iter += 1;
 
+        let starttime = Instant::now();
+
         let w = self.width;
         let h = self.height;
 
         let mode = self.mode;
-        println!("h {} w {}", h, w);
-        println!("cells size {}", self.cells.len());
         let mut v = Vec::with_capacity(self.cells.len());
         // top blank row
         v.extend((0..w).map(|_| 0 as i8));
-        v.extend(
-            (1..h-1).map(|y| {
+        v.par_extend(
+            (1..h-1).into_par_iter().map(|y| {
                 let c = self.cells.clone();
                 let start = y*w;
                 // main bit
-                (0..w).map(move |x| {
+                (0..w).into_par_iter().map(move |x| {
                     if x == 0 || x == w-1 {
                         // blank left/right
                         0 
@@ -210,12 +216,12 @@ impl GenSketch {
                 })
             })
             .flatten()
-            );
+        );
         // bottom blank row
         v.extend((0..w).map(|_| 0 as i8));
-        println!("new v size {}", v.len());
 
         self.cells = Arc::new(v);
+        self.elapsed += starttime.elapsed().as_secs_f64();
     }
 
     pub fn get_image_buffer(&self) -> Vec<u8> {
@@ -411,6 +417,12 @@ fn build_ui() -> impl Widget<GenData> {
                 Label::dynamic(|iter: &u64, _: &Env| format!("iter {}", iter))
                 .lens(GenData::sketch.then(GenSketch::iter))
                 )
+            /*
+            .with_child(
+                Label::dynamic(|sketch: &GenSketch, _: &Env| format!(
+                    "{} ms", sketch.elapsed / (sketch.iter as f64) * 0.001))
+                )
+                */
             .with_child(
                 Flex::row()
                 .with_child(
