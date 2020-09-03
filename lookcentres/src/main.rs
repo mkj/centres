@@ -137,16 +137,26 @@ impl GenSketch {
 
     pub fn step(&mut self) {
         self.iter += 1;
-        let mut v = vec![0; self.cells.len()];
 
         let w = self.width;
         let h = self.height;
 
-        let c = &self.cells;
-        for y in 1..h-1 {
-            let start = y * w;
-            for x in 1..w-1 {
-                v[x+start] = {
+        let mode = self.mode;
+        println!("h {} w {}", h, w);
+        println!("cells size {}", self.cells.len());
+        let mut v = Vec::with_capacity(self.cells.len());
+        // top blank row
+        v.extend((0..w).map(|_| 0 as i8));
+        v.extend(
+            (1..h-1).map(|y| {
+                let c = self.cells.clone();
+                let start = y*w;
+                // main bit
+                (0..w).map(move |x| {
+                    if x == 0 || x == w-1 {
+                        // blank left/right
+                        0 
+                    } else {
                         let total = //i8::min(9, i8::max(0, 
                             0
                             + c[x+start-w-1]
@@ -159,7 +169,7 @@ impl GenSketch {
                             + c[x+start+w]
                             + c[x+start+w+1]
                             ;
-                        match self.mode {
+                        match mode {
                             GenMode::Majority => {
                                 (total > 4).into()
                             }
@@ -167,7 +177,7 @@ impl GenSketch {
                                 (total == 4 || total > 5).into()
                             }
                             GenMode::Star1 | GenMode::TwoBonus => {
-                                let bonus = match self.mode {
+                                let bonus = match mode {
                                     GenMode::Star1 => {1}
                                     GenMode::TwoBonus => {2}
                                     _ => panic!("wrong mode")
@@ -196,9 +206,15 @@ impl GenSketch {
                                 //res
                             }
                         }
-                }
-            }
-        }
+                    }
+                })
+            })
+            .flatten()
+            );
+        // bottom blank row
+        v.extend((0..w).map(|_| 0 as i8));
+        println!("new v size {}", v.len());
+
         self.cells = Arc::new(v);
     }
 
