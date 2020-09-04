@@ -154,13 +154,13 @@ impl GenSketch {
         // top blank row
         v.extend((0..w).map(|_| 0 as i8));
         v.par_extend(
-            (1..h-1).into_par_iter().map(|y| {
+            (1..h-1).into_par_iter().flat_map_iter(|y| {
                 let c = self.cells.clone();
                 let start = y*w;
                 // main bit
-                (0..w).into_par_iter().map(move |x| {
+                (0..w).map(move |x| {
                     if x == 0 || x == w-1 {
-                        // blank left/right
+                        // blank left/right columns
                         0 
                     } else {
                         let total = //i8::min(9, i8::max(0, 
@@ -215,8 +215,8 @@ impl GenSketch {
                     }
                 })
             })
-            .flatten()
         );
+
         // bottom blank row
         v.extend((0..w).map(|_| 0 as i8));
 
@@ -417,12 +417,12 @@ fn build_ui() -> impl Widget<GenData> {
                 Label::dynamic(|iter: &u64, _: &Env| format!("iter {}", iter))
                 .lens(GenData::sketch.then(GenSketch::iter))
                 )
-            /*
             .with_child(
-                Label::dynamic(|sketch: &GenSketch, _: &Env| format!(
-                    "{} ms", sketch.elapsed / (sketch.iter as f64) * 0.001))
+                Label::dynamic(|sk: &GenSketch, _: &Env| format!(
+                    "{:.0}/s", sk.iter as f64 / sk.elapsed)
                 )
-                */
+                .lens(GenData::sketch)
+                )
             .with_child(
                 Flex::row()
                 .with_child(

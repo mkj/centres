@@ -13,3 +13,8 @@ default-members = [
 [profile.release]
 opt-level = 's'
 lto = true
+
+# for flat_map_iter
+# https://github.com/rayon-rs/rayon/pull/786
+[patch.crates-io]
+rayon = { path = "/Users/matt/src/rayon" }
