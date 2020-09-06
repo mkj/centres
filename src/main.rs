@@ -15,7 +15,7 @@ use druid::BoxConstraints;
 use druid::Env;
 use druid::{AppLauncher, WindowDesc, Widget, PlatformError, WidgetExt};
 use druid::{Data, Lens, LensExt};
-use druid::widget::{Flex,Label,Stepper,RadioGroup,TextBox,Slider,Button};
+use druid::widget::{Flex,Label,Stepper,RadioGroup,TextBox,Slider,Button,Checkbox};
 use druid::piet::{ImageFormat,InterpolationMode};
 use druid::widget::prelude::*;
 
@@ -44,6 +44,7 @@ struct GenData {
 
     width: usize,
     height: usize,
+    invert: bool,
 
     sketch: GenSketch,
 }
@@ -58,6 +59,7 @@ impl GenData {
             mode,
             width: FIXED_WIDTH,
             height: FIXED_HEIGHT,
+            invert: false,
             seed: seed,
             startdensity,
             sketch: GenSketch::new(FIXED_WIDTH, FIXED_HEIGHT, mode, seed, startdensity),
@@ -102,7 +104,6 @@ struct GenSketch {
     cells: Arc<Vec<i8>>,
     width: usize,
     height: usize,
-    randompair: Arc<Vec<u32>>,
 
     // time to draw so far. XXX be nice if Duration implemented Data
     elapsed: f64,
@@ -130,7 +131,6 @@ impl GenSketch {
             cells: Arc::new(v),
             width,
             height,
-            randompair: Arc::new(p),
             elapsed: 0.0,
         }
     }
@@ -224,10 +224,15 @@ impl GenSketch {
         self.elapsed += starttime.elapsed().as_secs_f64();
     }
 
-    pub fn get_image_buffer(&self) -> Vec<u8> {
+    pub fn get_image_buffer(&self, invert: bool) -> Vec<u8> {
         let mut im = Vec::with_capacity(self.cells.len() * 4);
+        let (on, off) = if invert {
+            (0x00, 0xff)
+        } else {
+            (0xff, 0x00)
+        };
         for &v in self.cells.iter() {
-                let pix = if v != 0 { 0xff } else { 0 };
+                let pix = if v != 0 { on } else { off };
                 im.push(pix);
                 im.push(pix);
                 im.push(pix);
@@ -333,7 +338,7 @@ impl Widget<GenData> for GenWidget {
         // Let's burn some CPU to make a (partially transparent) image buffer
         let image = ctx
             .make_image(data.sketch.width, data.sketch.height, 
-                &data.sketch.get_image_buffer(), ImageFormat::RgbaSeparate)
+                &data.sketch.get_image_buffer(data.invert), ImageFormat::RgbaSeparate)
             .unwrap();
         // The image is automatically scaled to fit the rect you pass to draw_image
         ctx.draw_image(
@@ -422,6 +427,10 @@ fn build_ui() -> impl Widget<GenData> {
                     "{:.0}/s", sk.iter as f64 / sk.elapsed)
                 )
                 .lens(GenData::sketch)
+                )
+            .with_child(
+                Checkbox::new("Inverted")
+                .lens(GenData::invert)
                 )
             .with_child(
                 Flex::row()
